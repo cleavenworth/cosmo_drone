@@ -1,1 +1,1 @@
-worker: python3 cosmo_drone_bot.py
+worker: python cosmo_drone_bot.py
