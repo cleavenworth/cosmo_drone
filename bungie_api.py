@@ -4,12 +4,23 @@ import urllib
 import os
 import json
 import requests
-
+import boto3
 
 # Bungie API Details
 API_KEY = os.environ['BUNGIE_KEY']
 HEADERS = {"X-API-Key": API_KEY}
 BASE_URL = "https://www.bungie.net/Platform/Destiny2/"
+
+# S3 bucket info
+S3_ID = os.environ["S3_ID"]
+S3_KEY = os.environ["S3_KEY"]
+BUCKET = os.environ["BUCKET"]
+JSONFILE = os.environ["JSONFILE"]
+
+# S3 command setup
+s3 = boto3.resource("s3").Bucket(BUCKET)
+json.load_s3 = lambda f: json.load(s3.Object(key=f).get()["Body"])
+json.dump_s3 = lambda obj, f: s3.Object(key=f).put(Body=json.dumps(obj))
 
 class BungieLookup(object):
     def __init__(self, players=None, discord_lookup=None, leaderboard=None):
@@ -60,18 +71,23 @@ class BungieLookup(object):
     def save_triumph_score(self, scores):
         for player in scores:
             self.TRIUMPH_SCORES["triumph_scores"][player] = scores[player]
-        with open(self.JSON_PATH, 'w') as stored_scores:
-            json.dump(self.TRIUMPH_SCORES, stored_scores)
+        # with open(self.JSON_PATH, 'w') as stored_scores:
+        #     json.dump(self.TRIUMPH_SCORES, stored_scores)
+        json.dump_s3(self.TRIUMPH_SCORES, JSONFILE)
 
-    def load_stored_scores(json_path):
+    def load_stored_scores():
         try:
-            with open(json_path, 'r')  as stored_scores:
-                triumph_scores = json.load(stored_scores)
+            # with open(json_path, 'r')  as stored_scores:
+                # triumph_scores = json.load(stored_scores)
+            triumph_scores = json.load_s3(JSONFILE)
         except:
-            with open(json_path, 'w+') as stored_scores:
-                data = {"discord_users":{}, "triumph_scores":{}}
-                json.dump(data, stored_scores)
-                triumph_scores = json.load(stored_scores)
+            # with open(json_path, 'w+') as stored_scores:
+            #     data = {"discord_users":{}, "triumph_scores":{}}
+            #     json.dump(data, stored_scores)
+            #     triumph_scores = json.load(stored_scores)
+            data = {"discord_users":{}, "triumph_scores":{}}
+            json.dump_s3(data, JSONFILE)
+            triumph_scores = json.load_s3(JSONFILE)
         return triumph_scores
 
     def read_bnet_user(self, discord_user):
@@ -103,5 +119,5 @@ class BungieLookup(object):
         score_data = sorted(score_data, key=lambda x: x[1], reverse=True)
         return top_scorer_data, score_data
 
-    JSON_PATH = "stored_scores.json"
-    TRIUMPH_SCORES = load_stored_scores(JSON_PATH)
+    # JSON_PATH = "stored_scores.json"
+    TRIUMPH_SCORES = load_stored_scores()
