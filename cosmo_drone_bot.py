@@ -10,7 +10,6 @@ import discord
 from bungie_api import BungieLookup as BL
 
 TOKEN = os.environ['DISCORD_KEY']
-# TOKEN = 'NTUxNTU4OTY5MDM1MDYzMzA5.D1ywFw.NA3Hmj4Ds83qXV26StPbveNY-ss'
 PERMISSION_INT = 84992
 
 cosmodrone = discord.Client()
