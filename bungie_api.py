@@ -12,9 +12,9 @@ HEADERS = {"X-API-Key": API_KEY}
 BASE_URL = "https://www.bungie.net/Platform/Destiny2/"
 
 # S3 bucket info
-S3_KEY = os.environ["S3_KEY"]
-S3_SECRET = os.environ["S3_SECRET"]
-BUCKET = os.environ["BUCKET"]
+AWS_ACCESS_KEY_ID = os.environ["AWS_ACCESS_KEY_ID"]
+AWS_SECRET_ACCESS_KEY = os.environ["AWS_SECRET_ACCESS_KEY"]
+S3_BUCKET = os.environ["S3_BUCKET"]
 JSONFILE = os.environ["JSONFILE"]
 
 # S3 command setup
