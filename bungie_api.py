@@ -18,7 +18,7 @@ S3_BUCKET = os.environ["S3_BUCKET"]
 JSONFILE = os.environ["JSONFILE"]
 
 # S3 command setup
-s3 = boto3.resource("s3").Bucket(BUCKET)
+s3 = boto3.resource("s3").Bucket(S3_BUCKET)
 json.load_s3 = lambda f: json.load(s3.Object(key=f).get()["Body"])
 json.dump_s3 = lambda obj, f: s3.Object(key=f).put(Body=json.dumps(obj))
 
