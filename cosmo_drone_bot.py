@@ -45,6 +45,17 @@ def format_leaderboard_message(score_data):
         msg = msg + "\n" + msg_part
     return msg
 
+def build_top_five_message(score_data):
+    embed = discord.Embed(title="Your Top Five Triumphs", \
+    description="Your top five closest-to-completion triumphs", color=0x006eff)
+    for triumph in score_data:
+        triumph_info = bl.get_triumph_info(triumph)
+        embed.add_field(name=triumph_info['displayProperties']['name'], \
+        value=triumph_info['displayProperties']['description'], inline=True)
+        embed.add_field(name="Percent Complete", \
+        value=score_data[triumph]['CompletionPercentage'], inline=True)
+    return embed
+
 def perform_triumph_action(action, player_list=None, discord_user=None):
     try:
         if len(player_list) == 0:
@@ -72,6 +83,13 @@ def perform_triumph_action(action, player_list=None, discord_user=None):
     elif action == 'leaderboard':
         bl = BL(leaderboard=True)
         triumph_scores = bl.triumph_leaderboard(bl.players)
+    elif action == 'top_five':
+        if discord_flag == True:
+            bl = BL(discord_lookup=discord_user)
+            triumph_scores = bl.top_five_closest_triumphs(bl.players)
+        else:
+            bl = BL(players=player_list)
+            triumph_scores = bl.get_triumph_score(bl.get_bungie_membership_id(bl.players))
     return triumph_scores
 
 def register_user(player, discord_user):
@@ -168,6 +186,15 @@ async def on_message(message):
         print(vs_list)
         print(player_list)
         await cosmodrone.send_message(message.channel, "Setting Up Vs Tracker for {}".format(vs_list))
+
+    if message.content.startswith('!triumph_top_five'):
+        try:
+            score_data = perform_triumph_action(action="top_five", \
+            discord_user="{0.author}".format(message))
+            await cosmodrone.send_message(message.channel, "{0.author.mention}".format(message) + \
+            build_top_five_message(score_data))
+        except Exception as error:
+            print(error)
 
 # async def clock():
 #     while True:
