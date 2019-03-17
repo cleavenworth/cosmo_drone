@@ -219,7 +219,13 @@ async def on_message(message):
 
     if message.content.startswith('!help'):
         await cosmodrone.send_message(message.author, \
-        "Register first using `!triumph_register YourBNetTag`")
+        "Register first using `!triumph_register YourBNetTag#111`\n"\
+        "`!triumph_score` to lookup your current Triumph score.\n"\
+        "`!triumph compare` to compare your score against someone else's, "\
+        "or any number of other players. Alternatively use `me` for the first"\
+        " player to compare against yourself.\n"\
+        "`!triumph_top_five` to see your top five closest triumphs.\n"\
+        "`!triumph_leaderboard` to see top triumph scores of all registered players.")
 
 # async def clock():
 #     while True:
