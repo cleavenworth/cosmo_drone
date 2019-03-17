@@ -217,7 +217,7 @@ async def on_message(message):
         # except Exception as error:
         #     print(error)
 
-    if message.content.startswith('!help'):
+    if message.content.startswith('!triumph_help'):
         await cosmodrone.send_message(message.author, \
         "Register first using `!triumph_register YourBNetTag#111`\n"\
         "`!triumph_score` to lookup your current Triumph score.\n"\
