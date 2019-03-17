@@ -35,36 +35,51 @@ class RecordState(Flags):
     CanEquipTitle = 64
 
 class BungieLookup():
-    def __init__(self, players=None, discord_lookup=None, leaderboard=None):
+    def __init__(self, player=None, discord_lookup=None, leaderboard=None):
         if discord_lookup:
-            if len(players) == 0:
-                players = [""]
-            else:
-                players = players.split()
-            players[0] = self.read_bnet_user(discord_lookup)
-            self.players = players
+            # if not player:
+            #     player = ""
+            # else:
+            #     player = player.split()
+            player = self.read_bnet_user(discord_lookup)
+            self.player = player
         elif leaderboard:
             players = []
             discord_users = self.TRIUMPH_SCORES['discord_users']
             for discord_user in discord_users:
                 players.append(self.read_bnet_user(discord_user))
-            self.players = players
-        else:
-            players = players.split()
-            self.players = players
+            self.player = players
+        elif isinstance(player, str) and player != "me":
+            self.player = player
+        elif isinstance(player, list) and len(player) > 1:
+            # players = []
+            # for a_player in player:
+            #     players.append(self.get_bungie_membership_id())
+            players = player.split()
+            self.player = players
+
 
     def get_bungie_membership_id(self, player):
-        member_id = {}
-        # for player in players:
-        try:
-            request = requests.get(BASE_URL + \
-            "SearchDestinyPlayer/4/" + \
-            urllib.parse.quote(player), \
-            headers=HEADERS)
-            member_id[player] = request.json()['Response'][0]['membershipId']
-        except IndexError as exception:
-            print(request.url)
-            # break
+        if isinstance(player, str):
+            try:
+                request = requests.get(BASE_URL + \
+                "SearchDestinyPlayer/4/" + \
+                urllib.parse.quote(player), \
+                headers=HEADERS)
+                member_id = request.json()['Response'][0]['membershipId']
+            except IndexError as exception:
+                print(request.url)
+        elif isinstance(player, list):
+            member_id = {}
+            for playerid in player:
+                try:
+                    request = requests.get(BASE_URL + \
+                    "SearchDestinyPlayer/4/" + \
+                    urllib.parse.quote(playerid), \
+                    headers=HEADERS)
+                    member_id = request.json()['Response'][0]['membershipId']
+                except IndexError as exception:
+                    print(request.url)
         return member_id
 
     def get_triumph_data(self, member_id):
@@ -73,10 +88,11 @@ class BungieLookup():
         headers=HEADERS).json()['Response']['profileRecords']['data']['records']
         return triumph_data
 
-    def get_triumph_score_v2(self, member_id, triumph_data):
-        score = {}
-        triumph_score = triumph_data['score']
-        score[member_id] = triumph_score
+    def get_triumph_score_v2(self, member_id):
+        score = [self.player]
+        score.append(requests.get(BASE_URL  + \
+        "4/Profile/" + member_id + "/?components=Records", \
+        headers=HEADERS).json()['Response']['profileRecords']['data']['score'])
         return score
 
     def get_triumph_score(self, member_ids):
@@ -132,21 +148,27 @@ class BungieLookup():
 
     def register_bnet_user(self, player, discord_user):
         try:
-            self.TRIUMPH_SCORES['discord_users'][discord_user] = player[0]
+            self.TRIUMPH_SCORES['discord_users'][discord_user] = player
         except KeyError:
-            self.TRIUMPH_SCORES["triumph_scores"][player[0]] = {}
-            self.TRIUMPH_SCORES['discord_users'][discord_user] = player[0]
-        self.get_triumph_score(self.get_bungie_membership_id([player[0]]))
+            self.TRIUMPH_SCORES["triumph_scores"][player] = {}
+            self.TRIUMPH_SCORES['discord_users'][discord_user] = player
+        self.get_triumph_score_v2(self.get_bungie_membership_id(player))
 
     def compare_triumph_score(self, players):
-        score_dict = self.get_triumph_score(self.get_bungie_membership_id(players))
+        score_dict = {}
+        for player in players:
+            score_dict[player] = \
+            self.get_triumph_score_v2(self.get_bungie_membership_id(player))
         score_data = [(player, data['score']) for player, data in score_dict.items()]
         top_scorer_data = sorted(score_data, key=lambda x: x[1], reverse=True)[0]
         score_data = sorted(score_data, key=lambda x: x[1], reverse=True)
         return top_scorer_data, score_data
 
     def triumph_leaderboard(self, players):
-        score_dict = self.get_triumph_score(self.get_bungie_membership_id(players))
+        score_dict = {}
+        for player in players:
+            score_dict[player] = \
+            self.get_triumph_score_v2(self.get_bungie_membership_id(player))
         score_data = [(player, data['score']) for player, data in score_dict.items()]
         top_scorer_data = sorted(score_data, key=lambda x: x[1], reverse=True)[0]
         score_data = sorted(score_data, key=lambda x: x[1], reverse=True)
@@ -155,7 +177,6 @@ class BungieLookup():
     # Compare bit-wise state flag values for triumph against definitions
     def only_uncompleted_triumphs(self, triumph_data):
         triumph_state = RecordState(triumph_data['state'])
-        print(triumph_data, RecordState(triumph_data['state']))
         if bool((RecordState.RecordRedeemed | RecordState.Obscured | RecordState.Invisible) & triumph_state):
             return True
         return False
@@ -182,11 +203,11 @@ class BungieLookup():
             try:
                 del triumph_data[completed]
             except KeyError:
-                print("Triumph: ", completed, "already deleted")
+                pass
         return triumph_data
 
     # Lookup Triumph description and store info/progress
-    def get_triumph_info(self, triumph_hash, triumph_json):
+    def get_triumph_info(self, triumph_hash, triumph_json=None):
         if triumph_hash in self.TRIUMPH_MANIFEST['triumphs']:
             triumph_desc = self.TRIUMPH_MANIFEST['triumphs'][triumph_hash]
             update_cache = False
@@ -201,9 +222,10 @@ class BungieLookup():
         triumph_info['displayProperties']['description'] = triumph_desc['displayProperties']['description']
         triumph_info['completionInfo'] = {}
         triumph_info['completionInfo']['ScoreValue'] = triumph_desc['completionInfo']['ScoreValue']
-        for num, objective in enumerate(triumph_desc['objectiveHashes']):
-            triumph_info['objectiveHashes'][objective] = self.get_objective_info(objective_hash=objective,\
-            triumph_json=triumph_json, position=num)
+        if triumph_json:
+            for num, objective in enumerate(triumph_desc['objectiveHashes']):
+                triumph_info['objectiveHashes'][objective] = self.get_objective_info(objective_hash=objective,\
+                triumph_json=triumph_json, position=num)
         if update_cache is True:
             self.prepare_manifest_updates(triumph_hash=triumph_hash, \
             triumph_json=triumph_info)
@@ -267,22 +289,16 @@ class BungieLookup():
                 percent = 100.0
             individual_percentages.append(percent)
         total_percentage = sum(individual_percentages) / len(individual_percentages)
-        # print("Objectives: ", objectives)
-        # print("Individual Percentages: ", individual_percentages)
-        # print("Number of objectives: ", len(individual_percentages))
-        # print("Total Percentage: ", total_percentage)
         if total_percentage > 100.0:
             total_percentage = 100.0
         return total_percentage
 
     # Perform everything necessary to return top ten closest triumphs
     def top_five_closest_triumphs(self, player):
-        # try:
-        # for player in players:
         bungie_member_id = self.get_bungie_membership_id(player=player)
         filtered_triumph_data = \
         self.filter_triumph_data(triumph_data=\
-        self.get_triumph_data(member_id=bungie_member_id[player]))
+        self.get_triumph_data(member_id=bungie_member_id))
         score_data = self.combine_triumph_and_objective_data(\
         triumph_data=filtered_triumph_data)
         self.perform_manifest_updates()
@@ -292,7 +308,6 @@ class BungieLookup():
         return sorted_score_data
 
 
-    # JSON_PATH = "stored_scores.json"
     TRIUMPH_SCORES = load_stored_scores()
     TRIUMPH_MANIFEST = load_triumph_manifest()
     MANIFEST_UPDATE = {"triumphs":{}, "objectives":{}}

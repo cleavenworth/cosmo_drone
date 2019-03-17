@@ -14,11 +14,14 @@ PERMISSION_INT = 84992
 
 cosmodrone = discord.Client()
 
-def format_lookup_message(score_dict):
+def format_lookup_message(score_list):
     msg = "\n"
-    for player in score_dict:
-        msg_part = "**{}** - Current Triumph Score: **{}**".format(player, score_dict[player]['score'])
-        msg = msg + "\n" + msg_part
+    if isinstance(score_list, list):
+        msg = "\n" + "**{}** - Current Triumph Score: **{}**".format(score_list[0], score_list[1])
+    else:
+        for player in score_list:
+            msg_part = "**{}** - Current Triumph Score: **{}**".format(player, score_list[player]['score'])
+            msg = msg + "\n" + msg_part
     return msg
 
 def format_compare_message(score_data):
@@ -46,55 +49,67 @@ def format_leaderboard_message(score_data):
     return msg
 
 def build_top_five_message(score_data):
-    embed = discord.Embed(title="Your Top Five Triumphs", \
-    description="Your top five closest-to-completion triumphs", color=0x006eff)
+    embed_list = []
+    bl = BL()
     for triumph in score_data:
-        triumph_info = bl.get_triumph_info(triumph)
-        embed.add_field(name=triumph_info['displayProperties']['name'], \
-        value=triumph_info['displayProperties']['description'], inline=True)
+        triumph_info = bl.get_triumph_info(triumph[0])
+        embed = discord.Embed(title=triumph_info['displayProperties']['name'], \
+        description=triumph_info['displayProperties']['description'], color=0x006eff)
         embed.add_field(name="Percent Complete", \
-        value=score_data[triumph]['CompletionPercentage'], inline=True)
-    return embed
+        value=str(round(triumph[1]['CompletionPercentage'], 2)) + "%")
+        for objective in triumph[1]['objectiveHashes']:
+            embed.add_field(name=triumph[1]['objectiveHashes'][objective]['progressDescription'], \
+            value=str(triumph[1]['objectiveHashes'][objective]['progress']) + "/" + \
+            str(triumph[1]['objectiveHashes'][objective]['completionValue']), inline=True)
+        embed_list.append(embed)
+    return embed_list
 
 def perform_triumph_action(action, player_list=None, discord_user=None):
-    try:
-        if len(player_list) == 0:
-            discord_flag = True
-            player_list = ""
-        if player_list.split()[0] == "me":
-            discord_flag = True
-        else:
-            discord_flag = False
-    except IndexError:
-        player_list = ""
+    # try:
+    if isinstance(player_list, list):
+        try:
+            player_list = player_list.split()
+            if len(player_list[0]) == 1:
+                print("Split a string")
+        except Exception as error:
+            print(error)
+    if not player_list:
+        discord_flag = True
+        # player_list = ""
+    elif player_list.split()[0] == "me":
+        discord_flag = True
+    else:
+        discord_flag = False
+    # except IndexError:
+        # player_list = ""
     if action == "lookup":
         if discord_flag == True:
-            bl = BL(players=player_list, discord_lookup=discord_user)
-            triumph_scores = bl.get_triumph_score(bl.get_bungie_membership_id(bl.players))
+            bl = BL(player=player_list, discord_lookup=discord_user)
+            triumph_scores = bl.get_triumph_score_v2(bl.get_bungie_membership_id(bl.player))
         else:
-            bl = BL(players=player_list)
-            triumph_scores = bl.get_triumph_score(bl.get_bungie_membership_id(bl.players))
+            bl = BL(player=player_list)
+            triumph_scores = bl.get_triumph_score_v2(bl.get_bungie_membership_id(bl.player))
     elif action == "compare":
         if discord_flag == True:
-            bl = BL(players=player_list, discord_lookup=discord_user)
+            bl = BL(player=player_list, discord_lookup=discord_user)
         else:
-            bl = BL(players=player_list)
-        triumph_scores = bl.compare_triumph_score(bl.players)
+            bl = BL(player=player_list)
+        triumph_scores = bl.compare_triumph_score(bl.player)
     elif action == 'leaderboard':
         bl = BL(leaderboard=True)
-        triumph_scores = bl.triumph_leaderboard(bl.players)
+        triumph_scores = bl.triumph_leaderboard(bl.player)
     elif action == 'top_five':
         if discord_flag == True:
-            bl = BL(discord_lookup=discord_user)
-            triumph_scores = bl.top_five_closest_triumphs(bl.players)
+            bl = BL(discord_lookup=discord_user, player=player_list)
+            triumph_scores = bl.top_five_closest_triumphs(bl.player)
         else:
-            bl = BL(players=player_list)
-            triumph_scores = bl.get_triumph_score(bl.get_bungie_membership_id(bl.players))
+            bl = BL(player=player_list)
+            triumph_scores = bl.top_five_closest_triumphs(bl.player)
     return triumph_scores
 
 def register_user(player, discord_user):
-    bl = BL(players=player)
-    bl.register_bnet_user(discord_user=discord_user, player=bl.players)
+    bl = BL(player=player)
+    bl.register_bnet_user(discord_user=discord_user, player=bl.player)
 
 # class Timer:
 #     def __init__(self, timeout, callback):
@@ -150,10 +165,10 @@ async def on_message(message):
     if message.content.startswith('!triumph_score'):
         await cosmodrone.send_message(message.channel, "Scanning the Cosmo Drone...")
         player_list = message.content[15:]
-        score_dict = perform_triumph_action(action="lookup", player_list=player_list, \
+        score_list = perform_triumph_action(action="lookup", player_list=player_list, \
         discord_user="{0.author}".format(message))
         await cosmodrone.send_message(message.channel, "{0.author.mention}".format(message) + \
-        format_lookup_message(score_dict=score_dict))
+        format_lookup_message(score_list=score_list))
 
     if message.content.startswith('!triumph_compare'):
         await cosmodrone.send_message(message.channel, "Scanning the Cosmo Drone...")
@@ -188,13 +203,23 @@ async def on_message(message):
         await cosmodrone.send_message(message.channel, "Setting Up Vs Tracker for {}".format(vs_list))
 
     if message.content.startswith('!triumph_top_five'):
-        try:
-            score_data = perform_triumph_action(action="top_five", \
-            discord_user="{0.author}".format(message))
-            await cosmodrone.send_message(message.channel, "{0.author.mention}".format(message) + \
-            build_top_five_message(score_data))
-        except Exception as error:
-            print(error)
+        player = message.content[18:]
+        await cosmodrone.send_message(message.channel, "{0.author.mention} "\
+        "gathering your triumph info. Check your DMs in a moment!".format(message))
+        score_data = perform_triumph_action(action="top_five", \
+        discord_user="{0.author}".format(message), player_list=player)
+        await cosmodrone.send_message(message.author, "{0.author.mention} "\
+        "your closest triumphs are...".format(message))
+        embed_list = build_top_five_message(score_data)
+        for embed in embed_list:
+            await cosmodrone.send_message(message.author, embed=embed)
+            await asyncio.sleep(1.5)
+        # except Exception as error:
+        #     print(error)
+
+    if message.content.startswith('!help'):
+        await cosmodrone.send_message(message.author, \
+        "Register first using `!triumph_register YourBNetTag`")
 
 # async def clock():
 #     while True:
